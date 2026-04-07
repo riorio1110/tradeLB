@@ -31,11 +31,20 @@ function SummaryCard({
 export default async function DashboardPage() {
     const supabase = await createClient()
 
+    // デバッグ: 現在のユーザー情報を確認
+    const { data: { user } } = await supabase.auth.getUser()
+    console.log('🔍 [Dashboard] Logged in user:', user?.id ?? 'NOT LOGGED IN')
+
     // Fetch all trades for summary
     const { data: trades, error } = await supabase
         .from('trades')
         .select('*')
         .is('deleted_at', null)
+
+    // デバッグ: クエリ結果を出力
+    console.log('🔍 [Dashboard] Query error:', error)
+    console.log('🔍 [Dashboard] Trades count:', trades?.length ?? 0)
+    console.log('🔍 [Dashboard] Trades data:', JSON.stringify(trades, null, 2))
 
     if (error) {
         console.error('Error fetching trades:', error)
@@ -135,8 +144,8 @@ export default async function DashboardPage() {
                                         </td>
                                         <td className="py-3 px-2">
                                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${trade.trade_type === 'BUY'
-                                                    ? 'bg-blue-900/40 text-blue-300'
-                                                    : 'bg-pink-900/40 text-pink-300'
+                                                ? 'bg-blue-900/40 text-blue-300'
+                                                : 'bg-pink-900/40 text-pink-300'
                                                 }`}>
                                                 {trade.trade_type === 'BUY' ? '買' : '売'}
                                             </span>

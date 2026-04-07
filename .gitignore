@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+TradeNote_進捗一覧.xlsx
+.vscode/launch.json
+scripts/sample_insert.sql
+src/components/tradenote.code-workspace
