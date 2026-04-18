@@ -36,7 +36,7 @@
 - **Vercel**
 
 ### 外部サービス
-- **株価データ**: Yahoo Finance API（暫定・将来差し替え前提）
+- **株価データ**: TradingView API
 - **AI 振り返り**: OpenAI API（ChatGPT）
 
 ---
@@ -50,7 +50,7 @@ Client Layer (Next.js React + Tailwind)
 Server Layer (Next.js API Routes)
         ↓ DB Access / External API
 Supabase (PostgreSQL + Auth + RLS) ←→ External Services
-```
+
 
 ### CRUD 責務分離
 - **Supabase 直接操作**: 一般的な CRUD 操作（フロントエンドから）
