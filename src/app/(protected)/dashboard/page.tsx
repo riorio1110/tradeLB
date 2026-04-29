@@ -1,160 +1,137 @@
 import { createClient } from '@/utils/supabase/server'
+import {
+    formatDateJP,
+    formatPrice,
+    formatYen,
+    getTradeBadgeClass,
+    getTradeLabel,
+    TradeRecord,
+} from '@/utils/trades'
 
-// Summary card component
 function SummaryCard({
     title,
     value,
     subtitle,
-    icon,
     colorClass,
 }: {
     title: string
     value: string
     subtitle?: string
-    icon: string
     colorClass: string
 }) {
     return (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition-colors">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-zinc-400">{title}</h3>
-                <span className="text-2xl">{icon}</span>
-            </div>
-            <p className={`text-3xl font-bold ${colorClass}`}>{value}</p>
-            {subtitle && (
-                <p className="text-xs text-zinc-500 mt-2">{subtitle}</p>
-            )}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition-colors hover:border-zinc-700">
+            <p className="text-sm font-medium text-zinc-400">{title}</p>
+            <p className={`mt-3 text-3xl font-bold ${colorClass}`}>{value}</p>
+            {subtitle && <p className="mt-2 text-xs text-zinc-500">{subtitle}</p>}
         </div>
     )
 }
 
 export default async function DashboardPage() {
     const supabase = await createClient()
-
-    // デバッグ: 現在のユーザー情報を確認
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log('🔍 [Dashboard] Logged in user:', user?.id ?? 'NOT LOGGED IN')
-
-    // Fetch all trades for summary
-    const { data: trades, error } = await supabase
+    const { data, error } = await supabase
         .from('trades')
-        .select('*')
+        .select('id, symbol_code, symbol_name, market, trade_type, term_type, custody_type, execution_date, settlement_date, quantity, average_price, fee, tax, settlement_amount, source')
         .is('deleted_at', null)
-
-    // デバッグ: クエリ結果を出力
-    console.log('🔍 [Dashboard] Query error:', error)
-    console.log('🔍 [Dashboard] Trades count:', trades?.length ?? 0)
-    console.log('🔍 [Dashboard] Trades data:', JSON.stringify(trades, null, 2))
+        .order('execution_date', { ascending: false })
 
     if (error) {
         console.error('Error fetching trades:', error)
     }
 
-    const allTrades = trades ?? []
+    const allTrades = (data ?? []) as TradeRecord[]
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
 
-    // Calculate summary stats
-    const totalPL = allTrades.reduce((sum, t) => sum + Number(t.settlement_amount || 0), 0)
-    const tradeCount = allTrades.length
-    const sellTrades = allTrades.filter(t => t.trade_type === 'SELL')
-    const winTrades = sellTrades.filter(t => Number(t.settlement_amount || 0) > 0)
-    const winRate = sellTrades.length > 0
-        ? Math.round((winTrades.length / sellTrades.length) * 100)
-        : 0
-
-    // Today's P&L
-    const today = new Date().toISOString().split('T')[0]
-    const todayTrades = allTrades.filter(t => t.execution_date === today)
-    const todayPL = todayTrades.reduce((sum, t) => sum + Number(t.settlement_amount || 0), 0)
-
-    // Format currency
-    const formatYen = (amount: number) => {
-        const prefix = amount >= 0 ? '+' : ''
-        return `${prefix}¥${Math.abs(amount).toLocaleString()}`
-    }
+    const totalPL = allTrades.reduce((sum, trade) => sum + trade.settlement_amount, 0)
+    const todayTrades = allTrades.filter((trade) => trade.execution_date === todayStr)
+    const todayPL = todayTrades.reduce((sum, trade) => sum + trade.settlement_amount, 0)
+    const monthTrades = allTrades.filter((trade) => trade.execution_date.startsWith(monthPrefix))
+    const monthPL = monthTrades.reduce((sum, trade) => sum + trade.settlement_amount, 0)
+    const winCount = allTrades.filter((trade) => trade.settlement_amount > 0).length
+    const winRate = allTrades.length > 0 ? Math.round((winCount / allTrades.length) * 100) : 0
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-gray-100">ダッシュボード</h1>
-                <p className="text-sm text-zinc-500 mt-1">トレード実績のサマリー</p>
+                <p className="mt-1 text-sm text-zinc-500">
+                    取り込んだトレードの損益サマリーを確認できます。
+                </p>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <SummaryCard
-                    title="総合損益"
+                    title="累計損益"
                     value={formatYen(totalPL)}
-                    subtitle="全期間"
-                    icon="💰"
-                    colorClass={totalPL >= 0 ? 'text-green-400' : 'text-red-400'}
+                    subtitle={`${allTrades.length}件の返済トレード`}
+                    colorClass={totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}
                 />
                 <SummaryCard
                     title="本日の損益"
                     value={formatYen(todayPL)}
-                    subtitle={today}
-                    icon="📅"
-                    colorClass={todayPL >= 0 ? 'text-green-400' : 'text-red-400'}
+                    subtitle={todayStr}
+                    colorClass={todayPL >= 0 ? 'text-emerald-400' : 'text-red-400'}
                 />
                 <SummaryCard
-                    title="取引回数"
-                    value={`${tradeCount}回`}
-                    subtitle="全期間"
-                    icon="🔄"
-                    colorClass="text-blue-400"
+                    title="今月の損益"
+                    value={formatYen(monthPL)}
+                    subtitle={`${monthTrades.length}件`}
+                    colorClass={monthPL >= 0 ? 'text-emerald-400' : 'text-red-400'}
                 />
                 <SummaryCard
                     title="勝率"
                     value={`${winRate}%`}
-                    subtitle={`${winTrades.length}勝 / ${sellTrades.length}回`}
-                    icon="🎯"
-                    colorClass={winRate >= 50 ? 'text-green-400' : 'text-yellow-400'}
+                    subtitle={`${winCount}勝 / ${allTrades.length - winCount}敗`}
+                    colorClass={winRate >= 50 ? 'text-emerald-400' : 'text-amber-300'}
                 />
             </div>
 
-            {/* Recent Trades */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-gray-100 mb-4">最近のトレード</h2>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                <div className="mb-4 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-semibold text-zinc-100">最新トレード</h2>
+                        <p className="mt-1 text-sm text-zinc-500">直近 10 件を表示しています。</p>
+                    </div>
+                </div>
+
                 {allTrades.length === 0 ? (
-                    <div className="text-center py-12 text-zinc-500">
-                        <p className="text-4xl mb-4">📭</p>
-                        <p className="text-lg font-medium">まだトレードデータがありません</p>
-                        <p className="text-sm mt-2">CSVアップロードまたは手動入力でデータを追加しましょう</p>
+                    <div className="py-12 text-center text-zinc-500">
+                        <p className="text-lg font-medium text-zinc-300">まだトレードがありません</p>
+                        <p className="mt-2 text-sm">CSVアップロードから取り込みを始めてください。</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full min-w-[920px] text-sm">
                             <thead>
                                 <tr className="border-b border-zinc-800 text-zinc-400">
-                                    <th className="text-left py-3 px-2">日付</th>
-                                    <th className="text-left py-3 px-2">銘柄</th>
-                                    <th className="text-left py-3 px-2">売買</th>
-                                    <th className="text-right py-3 px-2">数量</th>
-                                    <th className="text-right py-3 px-2">単価</th>
-                                    <th className="text-right py-3 px-2">損益</th>
+                                    <th className="px-2 py-3 text-left">決済日</th>
+                                    <th className="px-2 py-3 text-left">銘柄</th>
+                                    <th className="px-2 py-3 text-left">取引</th>
+                                    <th className="px-2 py-3 text-right">数量</th>
+                                    <th className="px-2 py-3 text-right">建単価</th>
+                                    <th className="px-2 py-3 text-right">損益</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {allTrades.slice(0, 10).map((trade) => (
-                                    <tr key={trade.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                                        <td className="py-3 px-2 text-zinc-300">{trade.execution_date}</td>
-                                        <td className="py-3 px-2">
-                                            <span className="text-zinc-200 font-medium">{trade.symbol_name}</span>
-                                            <span className="text-zinc-500 text-xs ml-2">{trade.symbol_code}</span>
+                                    <tr key={trade.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/30">
+                                        <td className="px-2 py-3 text-zinc-300">{formatDateJP(trade.execution_date)}</td>
+                                        <td className="px-2 py-3">
+                                            <div className="font-medium text-zinc-100">{trade.symbol_name}</div>
+                                            <div className="text-xs text-zinc-500">{trade.symbol_code}</div>
                                         </td>
-                                        <td className="py-3 px-2">
-                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${trade.trade_type === 'BUY'
-                                                ? 'bg-blue-900/40 text-blue-300'
-                                                : 'bg-pink-900/40 text-pink-300'
-                                                }`}>
-                                                {trade.trade_type === 'BUY' ? '買' : '売'}
+                                        <td className="px-2 py-3">
+                                            <span className={`rounded px-2 py-1 text-xs font-medium ${getTradeBadgeClass(trade.trade_type)}`}>
+                                                {getTradeLabel(trade.trade_type)}
                                             </span>
                                         </td>
-                                        <td className="py-3 px-2 text-right text-zinc-300">{Number(trade.quantity).toLocaleString()}</td>
-                                        <td className="py-3 px-2 text-right text-zinc-300">¥{Number(trade.average_price).toLocaleString()}</td>
-                                        <td className={`py-3 px-2 text-right font-medium ${Number(trade.settlement_amount) >= 0 ? 'text-green-400' : 'text-red-400'
-                                            }`}>
-                                            {formatYen(Number(trade.settlement_amount))}
+                                        <td className="px-2 py-3 text-right text-zinc-300">{trade.quantity.toLocaleString()}</td>
+                                        <td className="px-2 py-3 text-right text-zinc-300">{formatPrice(trade.average_price)}</td>
+                                        <td className={`px-2 py-3 text-right font-semibold ${trade.settlement_amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            {formatYen(trade.settlement_amount)}
                                         </td>
                                     </tr>
                                 ))}

@@ -98,6 +98,9 @@ export default function CalendarGrid({ year, month, dailyPL, trades, monthlySumm
     ? trades.filter(t => t.execution_date === selectedDate)
     : []
   const selectedDayPL = selectedDate ? plMap.get(selectedDate)?.totalPL ?? 0 : 0
+  const commentHref = selectedDate
+    ? `/comments?year=${year}&month=${month}&date=${selectedDate}`
+    : `/comments?year=${year}&month=${month}`
 
   return (
     <div className="space-y-6">
@@ -228,6 +231,7 @@ export default function CalendarGrid({ year, month, dailyPL, trades, monthlySumm
         date={selectedDate ?? ''}
         trades={selectedTrades}
         dailyPL={selectedDayPL}
+        commentHref={commentHref}
       />
     </div>
   )

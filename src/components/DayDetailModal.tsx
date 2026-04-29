@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect } from 'react'
 
 type Trade = {
@@ -19,6 +20,7 @@ type Props = {
     date: string
     trades: Trade[]
     dailyPL: number
+    commentHref: string
 }
 
 function formatYen(amount: number): string {
@@ -32,7 +34,7 @@ function formatDateJP(dateStr: string): string {
     return `${y}年${Number(m)}月${Number(d)}日`
 }
 
-export default function DayDetailModal({ isOpen, onClose, date, trades, dailyPL }: Props) {
+export default function DayDetailModal({ isOpen, onClose, date, trades, dailyPL, commentHref }: Props) {
     // Escキーでモーダルを閉じる
     useEffect(() => {
         if (!isOpen) return
@@ -124,7 +126,14 @@ export default function DayDetailModal({ isOpen, onClose, date, trades, dailyPL 
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-zinc-800 flex justify-end">
+                <div className="p-4 border-t border-zinc-800 flex justify-between gap-3">
+                    <Link
+                        href={commentHref}
+                        onClick={onClose}
+                        className="px-4 py-2 rounded-lg border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 transition-colors text-sm font-medium"
+                    >
+                        コメントを書く
+                    </Link>
                     <button
                         onClick={onClose}
                         className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors text-sm font-medium"
