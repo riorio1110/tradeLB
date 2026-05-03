@@ -2,6 +2,28 @@ import { buildTradeSignature } from './trades'
 
 type ParsedCsvRow = Record<string, string>
 
+export const brokerCsvColumns = {
+    tradeType: '取引',
+    executionDate: '決済日',
+    settlementDate: '受渡日',
+    quantity: '決済数量',
+    averagePrice: '建単価',
+    settlementAmount: '受渡金額/決済損益',
+    fee: '諸費用計',
+    tax: '消費税',
+    settlementMarket: '決済市場',
+    builtMarket: '建市場',
+    symbolCode: '銘柄コード',
+    symbolName: '銘柄',
+    termType: '期限',
+    custodyType: '預り',
+} as const
+
+export const brokerCsvTradeTypeMarkers = {
+    sell: '返済売',
+    buy: '返済買',
+} as const
+
 export type ImportedTradeRow = {
     symbol_code: string
     symbol_name: string
@@ -30,7 +52,10 @@ function decodeCsv(buffer: ArrayBuffer) {
     const uint8 = new Uint8Array(buffer)
     const decodedShiftJis = new TextDecoder('shift_jis').decode(uint8)
 
-    if (decodedShiftJis.includes('決済日') && decodedShiftJis.includes('受渡金額/決済損益')) {
+    if (
+        decodedShiftJis.includes(brokerCsvColumns.executionDate) &&
+        decodedShiftJis.includes(brokerCsvColumns.settlementAmount)
+    ) {
         return decodedShiftJis
     }
 
@@ -121,11 +146,11 @@ function normalizeNullableText(value: string) {
 }
 
 function mapTradeType(value: string) {
-    if (value.includes('返済売')) {
+    if (value.includes(brokerCsvTradeTypeMarkers.sell)) {
         return 'SELL' as const
     }
 
-    if (value.includes('返済買')) {
+    if (value.includes(brokerCsvTradeTypeMarkers.buy)) {
         return 'BUY' as const
     }
 
@@ -140,7 +165,7 @@ export function parseBrokerCsv(buffer: ArrayBuffer): ParseCsvResult {
     let skippedRows = 0
 
     rows.forEach((row) => {
-        const tradeType = mapTradeType(row['取引'] ?? '')
+        const tradeType = mapTradeType(row[brokerCsvColumns.tradeType] ?? '')
 
         if (!tradeType) {
             skippedRows += 1
@@ -148,11 +173,11 @@ export function parseBrokerCsv(buffer: ArrayBuffer): ParseCsvResult {
             return
         }
 
-        const executionDate = normalizeDate(row['決済日'] ?? '')
-        const settlementDate = normalizeDate(row['受渡日'] ?? '')
-        const quantity = normalizeNumber(row['決済数量'] ?? '')
-        const averagePrice = normalizeNumber(row['建単価'] ?? '')
-        const settlementAmount = normalizeNumber(row['受渡金額/決済損益'] ?? '')
+        const executionDate = normalizeDate(row[brokerCsvColumns.executionDate] ?? '')
+        const settlementDate = normalizeDate(row[brokerCsvColumns.settlementDate] ?? '')
+        const quantity = normalizeNumber(row[brokerCsvColumns.quantity] ?? '')
+        const averagePrice = normalizeNumber(row[brokerCsvColumns.averagePrice] ?? '')
+        const settlementAmount = normalizeNumber(row[brokerCsvColumns.settlementAmount] ?? '')
 
         if (!executionDate || !quantity || Number.isNaN(averagePrice) || Number.isNaN(settlementAmount)) {
             skippedRows += 1
@@ -160,17 +185,19 @@ export function parseBrokerCsv(buffer: ArrayBuffer): ParseCsvResult {
             return
         }
 
-        const fee = normalizeNumber(row['諸費用計'] ?? '')
-        const tax = normalizeNumber(row['消費税'] ?? '')
-        const market = normalizeNullableText(row['決済市場'] ?? '') ?? normalizeNullableText(row['建市場'] ?? '')
+        const fee = normalizeNumber(row[brokerCsvColumns.fee] ?? '')
+        const tax = normalizeNumber(row[brokerCsvColumns.tax] ?? '')
+        const market =
+            normalizeNullableText(row[brokerCsvColumns.settlementMarket] ?? '') ??
+            normalizeNullableText(row[brokerCsvColumns.builtMarket] ?? '')
 
         trades.push({
-            symbol_code: (row['銘柄コード'] ?? '').trim(),
-            symbol_name: (row['銘柄'] ?? '').trim(),
+            symbol_code: (row[brokerCsvColumns.symbolCode] ?? '').trim(),
+            symbol_name: (row[brokerCsvColumns.symbolName] ?? '').trim(),
             market,
             trade_type: tradeType,
-            term_type: normalizeNullableText(row['期限'] ?? ''),
-            custody_type: normalizeNullableText(row['預り'] ?? ''),
+            term_type: normalizeNullableText(row[brokerCsvColumns.termType] ?? ''),
+            custody_type: normalizeNullableText(row[brokerCsvColumns.custodyType] ?? ''),
             execution_date: executionDate,
             settlement_date: settlementDate,
             quantity,
