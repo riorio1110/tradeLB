@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import CalendarGrid from '@/components/CalendarGrid'
+import { buildCalendarSummary } from '@/utils/calendar'
 
 export default async function CalendarPage(props: {
     searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
@@ -30,29 +31,7 @@ export default async function CalendarPage(props: {
     }
 
     const allTrades = trades ?? []
-
-    // Aggregate daily P&L
-    const dailyMap = new Map<string, { totalPL: number; tradeCount: number }>()
-    allTrades.forEach(trade => {
-        const date = trade.execution_date
-        const current = dailyMap.get(date) || { totalPL: 0, tradeCount: 0 }
-        current.totalPL += Number(trade.settlement_amount || 0)
-        current.tradeCount += 1
-        dailyMap.set(date, current)
-    })
-
-    const dailyPL = Array.from(dailyMap.entries()).map(([date, data]) => ({
-        date,
-        totalPL: data.totalPL,
-        tradeCount: data.tradeCount,
-    }))
-
-    // Monthly summary
-    const totalPL = dailyPL.reduce((sum, d) => sum + d.totalPL, 0)
-    const tradingDays = dailyPL.length
-    const winDays = dailyPL.filter(d => d.totalPL > 0).length
-    const lossDays = dailyPL.filter(d => d.totalPL < 0).length
-    const winRate = tradingDays > 0 ? Math.round((winDays / tradingDays) * 100) : 0
+    const { dailyPL, monthlySummary } = buildCalendarSummary(allTrades)
 
     return (
         <div className="space-y-6">
@@ -68,7 +47,7 @@ export default async function CalendarPage(props: {
                 month={month}
                 dailyPL={dailyPL}
                 trades={allTrades}
-                monthlySummary={{ totalPL, tradingDays, winRate, winDays, lossDays }}
+                monthlySummary={monthlySummary}
             />
         </div>
     )
